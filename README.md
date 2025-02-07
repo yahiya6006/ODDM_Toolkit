@@ -4,8 +4,13 @@ ODDM-Toolkit is a comprehensive data management tool designed for handling objec
 
 ## Requirements
 
+**System Requirements**
 | package    | version |
 |------------|---------|
 | python     | 3.10.11 |
 | postgreSQL | 16.6    |
+
+**Python Dependencies**
+| package    | version |
+|------------|---------|
 | pyside6    | 6.8.2.1 |
