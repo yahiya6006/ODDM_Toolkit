@@ -11,6 +11,9 @@ ODDM-Toolkit is a comprehensive data management tool designed for handling objec
 | postgreSQL | 16.6    |
 
 **Python Dependencies**
-| package    | version |
-|------------|---------|
-| pyside6    | 6.8.2.1 |
+| package      | version |
+|--------------|---------|
+| pyside6      | 6.8.2.1 |
+| cryptography | 44.0.0  |
+| psycopg2     | 2.9.10  |
+| argon2-cffi  | 23.1.0  |
