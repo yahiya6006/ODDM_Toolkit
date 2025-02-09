@@ -3,6 +3,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 from ui.startup_window import boot_window
 from ui.host_setup_ui import SetupPasswordWidget
+from utils.database import check_if_admin_exists_in_oddm_db
 
 class ODDM_host_setup:
     def __init__(self):
@@ -22,14 +23,28 @@ class ODDM_host_setup:
         if connect_to_psql_db(password):
             print("✅ Password correct! Proceeding with setup...")
             self.Admin_psql_password = password
-            self.password_ui.stacked_widget.setCurrentIndex(1)
+            if check_if_admin_exists_in_oddm_db(password):
+                self.password_ui.stacked_widget.setCurrentIndex(4)
+            else:
+                self.password_ui.stacked_widget.setCurrentIndex(1)
         else:
             self.password_ui.show_error_dialog("Incorrect password. Please try again.")
+            self.password_ui.reset_psql_password_input()
 
     def get_user_details(self, oddm_password, superuser_email, superuser_name, superuser_password ):
         user_credentials = setup_oddm_toolkit_db(oddm_password, self.Admin_psql_password, superuser_email, superuser_name, superuser_password)
-        create_oddm_setup_file(user_credentials)
-        self.password_ui.close()
+        if not user_credentials["success"]:
+            if user_credentials["error_id"] == "ERR-ODDM-STUP-001":
+                self.password_ui.show_error_dialog(user_credentials["error"])
+                self.password_ui.reset_oddm_db_password_input()
+            else:
+                self.password_ui.show_error_dialog(user_credentials["error"])
+                self.password_ui.handle_user_creation_error( user_credentials["error_id"] )
+            return
+
+        create_oddm_setup_file(user_credentials["credentials"])
+
+        self.password_ui.stacked_widget.setCurrentIndex(5)
 
     def run(self):
         sys.exit(self.app.exec())

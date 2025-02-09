@@ -23,6 +23,8 @@ def create_oddm_setup_file(data: dict):
     gen_key = _generate_encryption_key()
     json_data = json.dumps(data).encode()
     encrypted_data = gen_key.encrypt(json_data)
+    if os.path.exists(".oddm_setup_config"):
+        os.remove(".oddm_setup_config")
     with open(".oddm_setup_config", "wb") as file:
         file.write(encrypted_data)
     if platform.system() == "Windows":
