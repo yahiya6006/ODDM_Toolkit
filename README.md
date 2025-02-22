@@ -16,12 +16,14 @@ This repository contains the code for Episode 2.1 of the ODDM-Toolkit series. In
 | postgreSQL | 16.6    |
 
 **Python Dependencies**
-| package      | version |
-|--------------|---------|
-| pyside6      | 6.8.2.1 |
-| cryptography | 44.0.0  |
-| psycopg2     | 2.9.10  |
-| argon2-cffi  | 23.1.0  |
+| package                  | version |
+|--------------------------|---------|
+| pyside6                  | 6.8.2.1 |
+| cryptography             | 44.0.0  |
+| psycopg2                 | 2.9.10  |
+| argon2-cffi              | 23.1.0  |
+| google-api-python-client | 2.160.0 |
+| google_auth_oauthlib     | 1.2.1   |
 
 To set up your python environment execute the below command.
 ```sh

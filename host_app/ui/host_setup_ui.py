@@ -1,9 +1,15 @@
 from PySide6.QtCore import Qt, QSize, QRect, QCoreApplication, QMetaObject, Signal
-from PySide6.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QSpacerItem, QSizePolicy, QMessageBox, QStackedWidget, QHBoxLayout
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QSpacerItem, QSizePolicy, QMessageBox, QStackedWidget, QHBoxLayout, QFileDialog, QCheckBox
+from PySide6.QtGui import QColor, QPalette, QIcon, QPixmap
 from .theme import *
 import re
 import os
+from pathlib import Path
+import json
+import utils.gdrive as gdrive
+
+# Get the absolute path of the current file (the script inside 'ui' folder)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # Moves 3 levels up to project root
 
 # Custom QLineEdit to handle backspace key press
 class PasswordLineEdit(QLineEdit):
@@ -114,6 +120,7 @@ class SimpleLineEdit(QLineEdit):
 class SetupPasswordWidget(QWidget):
     passwordSubmitted = Signal(str)
     userDetailsSubmitted = Signal(str, str, str, str)
+    local_storage_selected = Signal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -140,6 +147,7 @@ class SetupPasswordWidget(QWidget):
         self.re_verify_page = self.create_user_password_re_verify_page()
         self.setup_already_done_page = self.get_user_concent_for_setup_alreasdy_done()
         self.admin_already_exists_page = self.get_user_concent_for_admin_already_exists()
+        self.setup_storage_page = self.show_setup_storage_page()
         self.setup_completed_page = self.show_setup_completed_page()
 
         self.stacked_widget.addWidget(self.password_page)
@@ -147,6 +155,7 @@ class SetupPasswordWidget(QWidget):
         self.stacked_widget.addWidget(self.re_verify_page)
         self.stacked_widget.addWidget(self.setup_already_done_page)
         self.stacked_widget.addWidget(self.admin_already_exists_page)
+        self.stacked_widget.addWidget(self.setup_storage_page)
         self.stacked_widget.addWidget(self.setup_completed_page)
 
         if os.path.exists(".oddm_setup_config"):
@@ -764,6 +773,270 @@ class SetupPasswordWidget(QWidget):
         self.re_enter_superuser_password_input.clear()
 
         self.stacked_widget.setCurrentIndex(1)
+
+    def show_setup_storage_page(self):
+        page = QWidget()
+        # Layout
+        layout = QVBoxLayout(page)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setContentsMargins(20, 5, 20, 5)
+        layout.setSpacing(15)
+
+        default_path = Path( BASE_DIR ) / "ODDM_data"
+
+        local_storage_label = QLabel("Select Local Storage Location:")
+        local_storage_label.setStyleSheet(f"""
+            color: {TEXT_PRIMARY_COLOR}; 
+            font-size: {TEXT_SIZE_HEADING}; 
+            font-weight: bold;
+            font-family: {TEXT_FONT_FAMILY};
+        """)
+        layout.addWidget(local_storage_label)
+
+        self.local_storage_path = SimpleLineEdit()
+        self.local_storage_path.setObjectName("local_storage_path")
+        self.local_storage_path.setPlaceholderText("Select local storage path")
+        self.local_storage_path.setStyleSheet(f"""
+            background-color: {INPUT_BG_COLOR};
+            border: 2px solid {INPUT_BORDER_COLOR};
+            color: {TEXT_PRIMARY_COLOR};
+            padding: 5px;
+            font-size: {TEXT_SIZE_INPUT_FEILD};
+            border-radius: 4px;
+            font-family: {TEXT_FONT_FAMILY};
+            font-weight: bold;
+        """)
+        self.local_storage_path.setText( str(default_path) )
+
+        browse_local_button = QPushButton()
+        browse_icon_pth = str( BASE_DIR / "assets" / "icons" / "browse_folder_ico.png" )
+        icon = QIcon(QPixmap(browse_icon_pth).scaled(32, 32))
+        browse_local_button.setIcon(icon)
+        browse_local_button.setIconSize(QSize(26, 26))
+        browse_local_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {PRIMARY_BUTTON_COLOR};
+                color: {TEXT_PRIMARY_COLOR};
+                border-radius: 4px;
+                padding: 5px;
+                font-size: {TEXT_SIZE_BUTTONS};
+                font-family: {TEXT_FONT_FAMILY};
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {HOVER_COLOR};  /* Hover effect */
+            }}
+            QPushButton:pressed {{
+                background-color: {ACTIVE_COLOR};  /* Click effect */
+            }}
+        """)
+        browse_local_button.setFixedSize(34, 34)
+        browse_local_button.clicked.connect(self.select_local_folder)
+
+        # Arrange Local Storage in a Horizontal Layout
+        local_layout = QHBoxLayout()
+        local_layout.addWidget(self.local_storage_path)
+        local_layout.addWidget(browse_local_button)
+        layout.addLayout(local_layout)
+
+        # 2. Google Drive Backup (Optional)
+        self.enable_cloud_checkbox = QCheckBox("Enable Google Drive Backup")
+        self.enable_cloud_checkbox.stateChanged.connect(self.toggle_cloud_options)
+        self.enable_cloud_checkbox.setStyleSheet(f"""
+            QCheckBox {{
+                color: {TEXT_PRIMARY_COLOR};
+                font-size: {TEXT_SIZE_INPUT_FEILD};
+                font-family: {TEXT_FONT_FAMILY};
+                font-weight: bold;
+                spacing: 8px;
+            }}
+        """)
+        layout.addWidget(self.enable_cloud_checkbox)
+
+        # Google Drive JSON File Selection
+        self.service_account_path = SimpleLineEdit()
+        self.service_account_path.setObjectName("local_storage_path")
+        self.service_account_path.setPlaceholderText("Select service account JSON")
+        self.service_account_path.setStyleSheet(f"""
+            background-color: {INPUT_BG_COLOR};
+            border: 2px solid {INPUT_BORDER_COLOR};
+            color: {TEXT_PRIMARY_COLOR};
+            padding: 5px;
+            font-size: {TEXT_SIZE_INPUT_FEILD};
+            border-radius: 4px;
+            font-family: {TEXT_FONT_FAMILY};
+            font-weight: bold;
+        """)
+        self.service_account_path.setVisible(False)
+
+        self.browse_json_button = QPushButton()
+        self.browse_json_button.setVisible(False)
+        browse_file_pth = str( BASE_DIR / "assets" / "icons" / "add_file_json.png" )
+        file_icon = QIcon(QPixmap(browse_file_pth).scaled(32, 32))
+        self.browse_json_button.setIcon(file_icon)
+        self.browse_json_button.setIconSize(QSize(26, 26))
+        self.browse_json_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {PRIMARY_BUTTON_COLOR};
+                color: {TEXT_PRIMARY_COLOR};
+                border-radius: 4px;
+                padding: 5px;
+                font-size: {TEXT_SIZE_BUTTONS};
+                font-family: {TEXT_FONT_FAMILY};
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {HOVER_COLOR};  /* Hover effect */
+            }}
+            QPushButton:pressed {{
+                background-color: {ACTIVE_COLOR};  /* Click effect */
+            }}
+        """)
+        self.browse_json_button.setFixedSize(34, 34)
+        self.browse_json_button.clicked.connect(self.select_service_json)
+
+        # Arrange JSON Selection in a Horizontal Layout
+        json_layout = QHBoxLayout()
+        json_layout.addWidget(self.service_account_path)
+        json_layout.addWidget(self.browse_json_button)
+        layout.addLayout(json_layout)
+
+        # Google Drive Folder ID
+        self.folder_id_input = SimpleLineEdit()
+        self.folder_id_input.setObjectName("folder_id_input")
+        self.folder_id_input.setPlaceholderText("Enter Google Drive Folder ID")
+        self.folder_id_input.setVisible(False)
+        self.folder_id_input.setStyleSheet(f"""
+            background-color: {INPUT_BG_COLOR};
+            border: 2px solid {INPUT_BORDER_COLOR};
+            color: {TEXT_PRIMARY_COLOR};
+            padding: 5px;
+            font-size: {TEXT_SIZE_INPUT_FEILD};
+            border-radius: 4px;
+            font-family: {TEXT_FONT_FAMILY};
+            font-weight: bold;
+        """)
+        layout.addWidget(self.folder_id_input)
+
+        submit_button = QPushButton()
+        submit_button.setObjectName("submit_button_storage")
+        submit_button.setText("Submit")
+        submit_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {PRIMARY_BUTTON_COLOR};
+                color: {TEXT_PRIMARY_COLOR};
+                border-radius: 4px;
+                padding: 5px;
+                font-size: {TEXT_SIZE_BUTTONS};
+                font-family: {TEXT_FONT_FAMILY};
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {HOVER_COLOR};  /* Hover effect */
+            }}
+            QPushButton:pressed {{
+                background-color: {ACTIVE_COLOR};  /* Click effect */
+            }}
+        """)
+        submit_button.setFixedSize(80, 28)
+        layout.addWidget(submit_button, alignment=Qt.AlignCenter)
+
+        submit_button.clicked.connect(self.setup_storage_submit)
+
+        page.setLayout(layout)
+        return page
+
+    def select_local_folder(self):
+        """Open a file dialog for local storage selection."""
+        folder = QFileDialog.getExistingDirectory(self, "Select Storage Directory", str( BASE_DIR ) )
+        if folder:
+            selected_path = Path(folder) / "ODDM_data"
+            self.local_storage_path.setText( str( selected_path ) )
+
+    def toggle_cloud_options(self):
+        """Enable or disable cloud storage options based on checkbox state."""
+        if self.enable_cloud_checkbox.isChecked():
+            enable = True
+            self.setFixedSize(400, 300)
+        else:
+            enable = False
+            self.setFixedSize(400, 250)
+
+        self.service_account_path.setVisible(enable)
+        self.browse_json_button.setVisible(enable)
+        self.folder_id_input.setVisible(enable)
+
+    def is_selected_json_valid(self):
+        """Check if the selected JSON file is valid."""
+        json_path = self.service_account_path.text()
+
+        try:
+            with open(json_path, "r") as f:
+                data = json.load(f)
+        except json.JSONDecodeError:
+            self.show_error_dialog("The selected JSON file is invalid.")
+            self.service_account_path.set_error_state()
+            self.service_account_path.clear()
+            return False
+
+        required_keys = {
+            "type", "project_id", "private_key_id", "private_key",
+            "client_email", "client_id", "auth_uri", "token_uri",
+            "auth_provider_x509_cert_url", "client_x509_cert_url", "universe_domain"
+        }
+
+        # Find missing keys
+        missing_keys = required_keys - data.keys()
+
+        if missing_keys:
+            self.show_error_dialog("The selected JSON file is missing required keys. missing keys: " + ", ".join(missing_keys))
+            self.service_account_path.set_error_state()
+            self.service_account_path.clear()
+            return False
+
+        # Check if "type" is "service_account"
+        if data.get("type") != "service_account":
+            self.show_error_dialog("The selected JSON file is not a service account.")
+            self.service_account_path.set_error_state()
+            self.service_account_path.clear()
+            return False
+
+        return True
+
+    def select_service_json(self):
+        """Open a file dialog for selecting the Google service account JSON file."""
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Service Account JSON", "", "JSON Files (*.json)")
+        if file_path:
+            self.service_account_path.reset_state()
+            self.service_account_path.setText(file_path)
+            self.is_selected_json_valid()
+
+    def setup_storage_submit(self):
+        """Submit the storage options."""
+        local_path = self.local_storage_path.text()
+        service_json_file = self.service_account_path.text()
+        folder_id = self.folder_id_input.text()
+
+        # creates the selected local path
+        os.makedirs(local_path, exist_ok=True)
+
+        # Google Drive Backup is checked
+        if self.enable_cloud_checkbox.isChecked():
+            gdrive_res = gdrive.establish_connection( service_json_file )
+            if gdrive_res['success']:
+                id_check_res = gdrive.check_if_gdrive_folder_exists( gdrive_res['gdrive_connection'], folder_id )
+                if id_check_res['success']:
+                    with open(service_json_file, "r") as f:
+                        service_json_data = json.load(f)
+                    self.local_storage_selected.emit( json.dumps(service_json_data), local_path )
+                else:
+                    self.show_error_dialog( id_check_res['error'] )
+                    return
+            else:
+                self.show_error_dialog( gdrive_res['error'] )
+                return
+        else:
+            self.local_storage_selected.emit( "", local_path )
 
 class ErrorDialog(QMessageBox):
     def __init__(self, message, parent=None):

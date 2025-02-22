@@ -28,6 +28,27 @@ def get_psql_connection():
 
 def check_if_admin_exists_in_oddm_db(password: str):
     db_name = "oddm_toolkit_db"
+
+    # Checking if the database exists
+    global PSQL_DB_CONNECTION
+
+    conn = PSQL_DB_CONNECTION
+    conn.autocommit = True
+    cursor = conn.cursor()
+
+    # Check if the database exists
+    cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s;", (db_name,))
+    db_exists = cursor.fetchone() is not None
+    
+    cursor.close()
+    conn.close()
+    PSQL_DB_CONNECTION = None  # Reset the connection
+    connect_to_psql_db(password)  # Reconnect to the default database
+
+    if not db_exists:
+        print(f"Database '{db_name}' does not exist.")
+        return False  # Database does not exist
+
     try:
         conn = psycopg2.connect(
             dbname=db_name,
@@ -153,7 +174,11 @@ def insert_user_details(username, email, password_hash=None, is_admin=False, is_
     return {"success": True, "id": ret_id}
 
 def setup_oddm_toolkit_db(oddm_password, Admin_psql_password, superuser_email, superuser_name, superuser_password):
-    """Sets up the ODDM Toolkit database."""
+    """Sets up the ODDM Toolkit database.
+    EERROR IDS:
+    ERR-ODDM-STUP-001: ODDM Toolkit database already exists. Invalid password provided.
+    ERR-ODDM-STUP-002: ODDM Toolkit user already exists, but the provided password is incorrect.
+    """
 
     global PSQL_DB_CONNECTION
 
@@ -175,6 +200,18 @@ def setup_oddm_toolkit_db(oddm_password, Admin_psql_password, superuser_email, s
     user_exists = cursor.fetchone()
     if not user_exists: 
         cursor.execute(sql.SQL("CREATE USER {} WITH PASSWORD %s").format(sql.Identifier(db_user)), [oddm_password])
+    else:
+        # user exists. checking if password is correct
+        try:
+            test_conn = psycopg2.connect(
+                dbname="postgres",
+                user=db_user,
+                password=oddm_password,
+                host="localhost"
+            )
+            test_conn.close()  # If successful, close test connection
+        except OperationalError:
+            return { "success": False, "error": "ODDM Toolkit user already exists, but the provided password is incorrect.", "error_id": "ERR-ODDM-STUP-002" }
 
     # Step 3: Grant all privileges to `oddm_admin` on the new database
     cursor.execute(sql.SQL("GRANT ALL PRIVILEGES ON DATABASE {} TO {}").format(sql.Identifier(db_name), sql.Identifier(db_user)))
@@ -203,7 +240,7 @@ def setup_oddm_toolkit_db(oddm_password, Admin_psql_password, superuser_email, s
     oddm_db_connect_res = connect_to_psql_db(oddm_password, user=db_user, db_name=db_name)
     if not oddm_db_connect_res and exists:
         # Reconnecting to default database
-        connect_to_psql_db(Admin_psql_password, db_name=db_name)
+        connect_to_psql_db(Admin_psql_password)
         return {"success": False, "error": "ODDM Toolkit database already exists. Invalid password provided.", "error_id": "ERR-ODDM-STUP-001"}
 
     create_users_table()  # Create the users table
