@@ -31,3 +31,12 @@ pip install -r python_dependencies.txt
 ```
 
 If you encounter any errors installing psycopg2 then modify the python_dependencies.txt file and replace **psycopg2** with **psycopg2-binary**
+
+to start the host app navigate to the folder host_app and execute.
+```sh
+python host_setup.py
+```
+or
+```sh
+python3 host_setup.py
+```
