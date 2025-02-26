@@ -2,3 +2,5 @@ pyside6==6.8.2.1
 cryptography==44.0.0
 psycopg2==2.9.10
 argon2-cffi==23.1.0
+google-api-python-client==2.160.0
+google-auth-oauthlib==1.2.1
