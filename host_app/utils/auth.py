@@ -28,6 +28,7 @@ from cryptography.fernet import Fernet
 import json
 import platform
 import subprocess
+from pathlib import Path
 
 def _generate_encryption_key():
     """Generate a unique encryption key based on the system's UUID."""
@@ -36,33 +37,76 @@ def _generate_encryption_key():
     _key = base64.urlsafe_b64encode(hashed_uuid) # Convert to base64 to make it a valid Fernet key
     return Fernet(_key)  # Return the encryption key
 
+def find_project_root(folder_name="ODDM_Toolkit") -> Path:
+    """Walks up from the current file or cwd to locate the project root."""
+    path = Path(__file__).resolve().parent
+
+    for parent in [path] + list(path.parents):
+        if parent.name == folder_name:
+            return parent
+
+    raise FileNotFoundError(f"Could not find root directory named '{folder_name}' from path {path}")
+
 def create_oddm_setup_file(data: dict):
     """Creates the ODDM Toolkits first time setup file."""
 
     if not isinstance(data, dict):
         return {"success": False, "error":"Credentials must be a dictionary." }
+    
+    try:
+        config_dir = find_project_root()
+    except FileNotFoundError as e:
+        return {"success": False, "error": str(e)}
+    
+    config_file = config_dir / ".oddm_setup_config"
+    print(f"Config file path: {config_file}")
 
     gen_key = _generate_encryption_key()
     json_data = json.dumps(data).encode()
     encrypted_data = gen_key.encrypt(json_data)
-    if os.path.exists(".oddm_setup_config"):
-        os.remove(".oddm_setup_config")
-    with open(".oddm_setup_config", "wb") as file:
+
+    if os.path.exists(config_file):
+        os.remove(config_file)
+    with open(config_file, "wb") as file:
         file.write(encrypted_data)
     if platform.system() == "Windows":
-        subprocess.call(["attrib", "+h", ".oddm_setup_config"])  # Hide file on Windows
+        subprocess.call(["attrib", "+h", config_file])  # Hide file on Windows
     
     return {"success": True, "message": "ODDM Toolkit setup file created."}
 
 def get_oddm_setup_credentials():
     """Get the ODDM Toolkit setup credentials."""
 
-    if not os.path.exists(".oddm_setup_config"):
+    try:
+        config_dir = find_project_root()
+    except FileNotFoundError as e:
+        return {"success": False, "error": str(e)}
+    
+    config_file = config_dir / ".oddm_setup_config"
+    print(f"Config file path: {config_file}")
+
+    if not os.path.exists(config_file):
         return {"success": False, "error": "ODDM Toolkit setup file does not exist."}
 
     gen_key = _generate_encryption_key()
-    with open(".oddm_setup_config", "rb") as file:
+    with open(config_file, "rb") as file:
         encrypted_data = file.read()
     decrypted_data = gen_key.decrypt(encrypted_data)
 
     return {"success": True, "data":json.loads(decrypted_data) }
+
+def check_if_oddm_setup_file_exists():
+    """Check if the ODDM Toolkit setup file exists."""
+    
+    try:
+        config_dir = find_project_root()
+    except FileNotFoundError as e:
+        return {"success": False, "error": str(e)}
+    
+    config_file = config_dir / ".oddm_setup_config"
+    print(f"Config file path: {config_file}")
+
+    if os.path.exists(config_file):
+        return {"success": True, "message": "ODDM Toolkit setup file exists."}
+    else:
+        return {"success": False, "error": "ODDM Toolkit setup file does not exist."}

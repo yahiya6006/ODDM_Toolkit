@@ -29,6 +29,7 @@ import os
 from pathlib import Path
 import json
 import utils.gdrive as gdrive
+from utils.auth import check_if_oddm_setup_file_exists
 
 # Get the absolute path of the current file (the script inside 'ui' folder)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # Moves 3 levels up to project root
@@ -180,7 +181,7 @@ class SetupPasswordWidget(QWidget):
         self.stacked_widget.addWidget(self.setup_storage_page)
         self.stacked_widget.addWidget(self.setup_completed_page)
 
-        if os.path.exists(".oddm_setup_config"):
+        if check_if_oddm_setup_file_exists()["success"]:
             self.stacked_widget.setCurrentIndex(3)
 
         # Layout
