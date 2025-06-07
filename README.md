@@ -5,6 +5,8 @@ ODDM-Toolkit is a comprehensive data management tool designed for handling objec
 ## 🎬 Episode 2.1 - Host Setup & Admin Initialization
 This repository contains the code for Episode 2.1 of the ODDM-Toolkit series. In this episode, we set up the host system, initialize the database, and configure the admin user.
 
+Youtube: [ODDM Toolkit | Episode 2.1 - Host Setup & Admin Initialization](https://youtu.be/ktoLMUBYIMY)
+
 📌 Stay tuned for upcoming episodes as we expand User Management further! 🚀
 
 ## Requirements
